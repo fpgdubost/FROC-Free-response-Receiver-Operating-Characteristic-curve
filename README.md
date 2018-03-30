@@ -1,6 +1,6 @@
 # FROC: Free-response Receiver Operating Characteristic curve
 
-This script computes and plots a FROC curve - Free-response Receiver Operating Characteristic - in pythonfrom numpy arrays. <br />
+This python script computes and plots a FROC curve - Free-response Receiver Operating Characteristic - from numpy arrays. <br />
 FROC curve is an alternative to ROC curve. On the x-axis stands the average number of false positives (FP) per scan instead of the false positive rate (FP/N, with N number of negatives). This plot is particularly useful for unbalanced detection problems, where the number of positives P is significantly lower than N. This would result in sticking all the meaningful information to the left of a ROC curve plot, and make any interpretation difficult.
 
 Examples of FROC curves:<br />
