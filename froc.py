@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import ndimage
 from scipy.spatial.distance import euclidean
-import imageio
 
 def computeConfMatElements(thresholded_proba_map, ground_truth, allowedDistance):
     
@@ -67,9 +66,10 @@ def computeFROC(proba_map, ground_truth, allowedDistance, nbr_of_thresholds=40, 
         
     #rescale ground truth and proba map between 0 and 1
     proba_map = proba_map.astype(np.float32)
-    ground_truth = ground_truth.astype(np.float32)
     proba_map = (proba_map - np.min(proba_map)) / (np.max(proba_map) - np.min(proba_map))
-    ground_truth = (ground_truth - np.min(ground_truth)) / (np.max(ground_truth) - np.min(ground_truth))
+    if type(ground_truth) == np.ndarray:
+        ground_truth = ground_truth.astype(np.float32)    
+        ground_truth = (ground_truth - np.min(ground_truth)) / (np.max(ground_truth) - np.min(ground_truth))
     
     #define the thresholds
     if range_threshold == None:
@@ -85,6 +85,7 @@ def computeFROC(proba_map, ground_truth, allowedDistance, nbr_of_thresholds=40, 
         FP_list_proba_map = []
         #loop over proba map
         for i in range(len(proba_map)):
+                       
             #threshold the proba map
             thresholded_proba_map = np.zeros(np.shape(proba_map[i]))
             thresholded_proba_map[proba_map[i] >= threshold] = 1
@@ -96,8 +97,11 @@ def computeFROC(proba_map, ground_truth, allowedDistance, nbr_of_thresholds=40, 
             P,TP,FP = computeConfMatElements(thresholded_proba_map, ground_truth[i], allowedDistance)       
             
             #append results to list
-            sensitivity_list_proba_map.append(TP*1./P)
             FP_list_proba_map.append(FP)
+            #check that ground truth contains at least one positive
+            if (type(ground_truth) == np.ndarray and np.nonzero(ground_truth) > 0) or (type(ground_truth) == list and len(ground_truth) > 0):
+                sensitivity_list_proba_map.append(TP*1./P)
+            
         
         #average sensitivity and FP over the proba map, for a given threshold
         sensitivity_list_treshold.append(np.mean(sensitivity_list_proba_map))
@@ -139,7 +143,9 @@ def computeAndPlotFROC(proba_map,ground_truth, allowedDistance, nbr_of_threshold
     #FPavg_list_treshold: list of average FP over the set of images for increasing thresholds
         
     sensitivity_list, FPavg_list, threshold_list = computeFROC(proba_map,ground_truth, allowedDistance, nbr_of_thresholds, range_threshold)
+    print 'computed FROC'
     plotFROC(FPavg_list,sensitivity_list,threshold_list,save_path, write_thresholds)
+    print 'plotted FROC'
     
     
     
