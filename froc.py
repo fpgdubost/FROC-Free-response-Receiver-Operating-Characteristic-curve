@@ -49,7 +49,7 @@ def computeFROCfromListsMatrix(list_ids,list_detections,list_gt,allowedDistance)
     sensitivity_matrix = pd.DataFrame(columns=list_ids)
     FP_matrix = pd.DataFrame(columns=list_ids)
 
-    for i in range(max_nbr_detections):
+    for i in range(1,max_nbr_detections):
         sensitivity_per_image = {}
         FP_per_image = {}
         for image_nbr, gt in enumerate(list_gt):
