@@ -1,5 +1,5 @@
 import numpy as np
-from froc import computeAndPlotFROC
+from froc import computeFROC, plotFROC
 import imageio
 
 if __name__ == '__main__':
@@ -11,7 +11,6 @@ if __name__ == '__main__':
     nbr_of_thresholds = 40
     range_threshold = [0.1,.99]
     allowedDistance = 10
-    write_thresholds = True
     
     #read the data
     ground_truth = np.expand_dims(imageio.imread('ground_truth.png')[:,:,0],axis=0)
@@ -19,6 +18,10 @@ if __name__ == '__main__':
     print ground_truth.shape
     print proba_map.shape  
     
+    #compute FROC    
+    sensitivity_list, FPavg_list, threshold_list = computeFROC(proba_map,ground_truth, allowedDistance, nbr_of_thresholds, range_threshold)
+    print 'computed FROC'
+    
     #plot FROC
-    computeAndPlotFROC(proba_map,ground_truth, allowedDistance, nbr_of_thresholds, range_threshold, save_path, write_thresholds)
-  
+    plotFROC(FPavg_list,sensitivity_list,save_path, threshold_list)
+    print 'plotted FROC'

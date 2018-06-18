@@ -1,5 +1,5 @@
 import numpy as np
-from froc import computeAndPlotFROC
+from froc import computeFROC, plotFROC
 
 if __name__ == '__main__':
     
@@ -12,15 +12,18 @@ if __name__ == '__main__':
     nbr_of_thresholds = 40
     range_threshold = [.1,.5]
     allowedDistance = 2
-    write_thresholds = False
     
     #create artificial data
     ground_truth = np.random.randint(2, size=[nbr_img]+size_img)
     proba_map = np.random.randint(100, size=[nbr_img]+size_img)*1./100
     
-    #plot FROC
-    computeAndPlotFROC(proba_map,ground_truth, allowedDistance, nbr_of_thresholds, range_threshold, save_path, write_thresholds)
+    #compute FROC    
+    sensitivity_list, FPavg_list, _ = computeFROC(proba_map,ground_truth, allowedDistance, nbr_of_thresholds, range_threshold)
+    print 'computed FROC'
     
+    #plot FROC
+    plotFROC(FPavg_list,sensitivity_list,save_path)
+    print 'plotted FROC'
     
     
     
