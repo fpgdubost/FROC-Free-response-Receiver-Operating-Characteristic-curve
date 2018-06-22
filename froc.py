@@ -197,7 +197,7 @@ def computeFROC(proba_map, ground_truth, allowedDistance, nbr_of_thresholds=40, 
             #append results to list
             FP_list_proba_map.append(FP)
             #check that ground truth contains at least one positive
-            if (type(ground_truth) == np.ndarray and np.count_nonzero(ground_truth) > 0) or (type(ground_truth) == list and len(ground_truth) > 0):
+            if (type(ground_truth[i]) == np.ndarray and np.count_nonzero(ground_truth[i]) > 0) or (type(ground_truth[i]) == list and len(ground_truth[i]) > 0):
                 sensitivity_list_proba_map.append(TP*1./P)
             
         
