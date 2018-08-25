@@ -6,13 +6,18 @@ from scipy import ndimage
 from scipy.spatial.distance import euclidean
 from scipy.optimize import linear_sum_assignment
 import pandas as pd
+from pdb import set_trace as bp
+import os
+import iocsv
 
-def computeAssignment(list_detections,list_gt,allowedDistance):
+def computeAssignment(list_detections,list_gt,allowedDistance,save_disagreement=False):
     #the assignment is based on the hungarian algorithm
     #https://docs.scipy.org/doc/scipy-0.18.1/reference/generated/scipy.optimize.linear_sum_assignment.html
     #https://en.wikipedia.org/wiki/Hungarian_algorithm
     
     #build cost matrix
+    #rows: GT
+    #columns: detections
     cost_matrix = np.zeros([len(list_gt),len(list_detections)])
     for i, pointR1 in enumerate(list_gt):
         for j, pointR2 in enumerate(list_detections): 
@@ -28,13 +33,86 @@ def computeAssignment(list_detections,list_gt,allowedDistance):
         if cost_matrix[row_ind[i],col_ind[i]] < allowedDistance:
             row_ind_thresholded.append(row_ind[i])
             col_ind_thresholded.append(col_ind[i])
-            
+    
+    #save coord FP and FN
+    if save_disagreement:
+        #just copy the lists and remove correct detections
+        list_FN = list(list_gt) #list() to copy
+        list_FP = list(list_detections)
+        for i in range(len(row_ind_thresholded)):
+            list_FN.remove(list_gt[row_ind_thresholded[i]])
+            list_FP.remove(list_detections[col_ind_thresholded[i]])
+                          
     #compute stats
     P = len(list_gt)
     TP = len(row_ind_thresholded)
     FP = len(list_detections) - TP
+    
+    if save_disagreement:
+        return P,TP,FP,list_FP,list_FN
+    else:
+        return P,TP,FP  
+        
+def saveCoordFNFP(list_ids,list_detections,list_gt,allowedDistance,index_pred_thresh, save_path):
+    #extract list predicted threshold
+    list_detections_thresh = []
+    for i in range(len(list_ids)):
+        list_detections_thresh.append(list_detections[i][-index_pred_thresh])
             
-    return P,TP,FP  
+    if not os.path.exists(os.path.join(save_path,'FPFN')):
+        os.mkdir(os.path.join(save_path,'FPFN'))
+        
+    FNFPallimages = pd.DataFrame(index=list_ids,columns=['FP','FN','FP+FN'])
+        
+    #iterate over scans
+    for image_nbr, gt in enumerate(list_gt):
+
+        image_id = list_ids[image_nbr]
+        if len(gt) > 0:  #check that ground truth contains at least one annotation
+            if len(list_detections_thresh[image_nbr]) > 0: #if there are detections
+                #compute P, TP, FP per image
+                _,_,_,list_FP,list_FN = computeAssignment(list_detections_thresh[image_nbr],gt,allowedDistance,save_disagreement=True)                
+            else:
+                list_FP = []
+                list_FN = gt
+                    
+        elif len(gt) == 0 and len(list_detections_thresh[image_nbr]) > 0: #if no annotations but detections
+            list_FP = list_detections_thresh[image_nbr]
+            list_FN = []
+            
+        elif len(gt) == 0 and len(list_detections_thresh[image_nbr]) == 0: #if no annotation and no detection
+            list_FP = []
+            list_FN = []
+            
+        #nbr FP FN
+        FNFPallimages.loc[image_id] = pd.Series({'FP':len(list_FP),'FN':len(list_FN),'FP+FN':len(list_FP)+len(list_FN)})
+        nbr_FPFN = [['FP',len(list_FP)],['FN',len(list_FN)]]
+        
+        #create a single list
+#        list_FPFN = []
+#        list_FPFN.append(['coord','FP'])
+#        for point in list_FP:
+#            list_FPFN.append([point,1])
+#        for point in list_FN:
+#            list_FPFN.append([point,0]) 
+            
+        list_FPFN = pd.DataFrame(columns=['x','y','z','FP'])
+        for point in list_FP:
+            list_FPFN = list_FPFN.append({'x':point[0],'y':point[1],'z':point[2],'FP':1},ignore_index=True)
+        for point in list_FN:
+            list_FPFN = list_FPFN.append({'x':point[0],'y':point[1],'z':point[2],'FP':0},ignore_index=True)
+        
+                        
+        #save results
+        if not os.path.exists(os.path.join(save_path,'FPFN',image_id)):
+            os.mkdir(os.path.join(save_path,'FPFN',image_id))    
+        iocsv.saveListCsvMultiCol(list_FN,os.path.join(save_path,'FPFN',image_id,'list_FN.csv'))
+        iocsv.saveListCsvMultiCol(list_FP,os.path.join(save_path,'FPFN',image_id,'list_FP.csv'))
+#        iocsv.saveListCsvMultiCol(list_FPFN,os.path.join(save_path,'FPFN',image_id,'list_FPFN.csv'))
+        iocsv.saveListCsvMultiCol(nbr_FPFN,os.path.join(save_path,'FPFN',image_id,'FPFN.csv'))
+        list_FPFN.to_csv(os.path.join(save_path,'FPFN',image_id,'list_FPFN.csv'))
+        FNFPallimages = FNFPallimages.sort_values(by='FP+FN',ascending=False)
+        FNFPallimages.to_csv(os.path.join(save_path,'FPFN','FNFPallimages.csv'))
 
 def computeFROCfromListsMatrix(list_ids,list_detections,list_gt,allowedDistance):
     #list_detection: first dimlension: number of images 
@@ -49,9 +127,11 @@ def computeFROCfromListsMatrix(list_ids,list_detections,list_gt,allowedDistance)
     sensitivity_matrix = pd.DataFrame(columns=list_ids)
     FP_matrix = pd.DataFrame(columns=list_ids)
 
+    #iterate over 'thresholds'
     for i in range(1,max_nbr_detections):
         sensitivity_per_image = {}
         FP_per_image = {}
+        #iterate over scans
         for image_nbr, gt in enumerate(list_gt):
             image_id = list_ids[image_nbr]
             if len(gt) > 0:  #check that ground truth contains at least one annotation
@@ -75,7 +155,7 @@ def computeFROCfromListsMatrix(list_ids,list_detections,list_gt,allowedDistance)
         sensitivity_matrix = sensitivity_matrix.append(sensitivity_per_image,ignore_index=True)
         FP_matrix = FP_matrix.append(FP_per_image,ignore_index=True)
             
-    return sensitivity_matrix, FP_matrix   
+    return sensitivity_matrix.transpose(), FP_matrix.transpose()   
 
 def computeFROCfromLists(list_detections,list_gt,allowedDistance):
     #get maximum number of detection per image across the dataset
